@@ -9,7 +9,12 @@ import com.amido.stacks.core.api.dto.response.ResourceCreatedResponse;
 import com.amido.stacks.core.api.dto.response.ResourceUpdatedResponse;
 import com.amido.stacks.workloads.menu.api.v1.dto.request.CreateCategoryRequest;
 import com.amido.stacks.workloads.menu.api.v1.dto.request.UpdateCategoryRequest;
-import com.amido.stacks.workloads.menu.service.v1.CategoryService;
+import com.amido.stacks.workloads.menu.cqrs.CreateCategoryHandler;
+import com.amido.stacks.workloads.menu.cqrs.DeleteCategoryHandler;
+import com.amido.stacks.workloads.menu.cqrs.UpdateCategoryHandler;
+import com.amido.stacks.workloads.menu.cqrs.commands.DeleteCategoryCommand;
+import com.amido.stacks.workloads.menu.cqrs.mappers.RequestToCommandMapper;
+import com.amido.stacks.workloads.menu.crud.service.v1.CategoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
@@ -33,8 +38,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class CategoryController {
+  #if USE_CQRS
+  // CQRS
+  private final CreateCategoryHandler createCategoryHandler;
 
+  private final UpdateCategoryHandler updateCategoryHandler;
+
+  private final DeleteCategoryHandler deleteCategoryHandler;
+
+  private final RequestToCommandMapper requestToCommandMapper;
+  #else
+  // CRUD
   private final CategoryService categoryService;
+  #endif
 
   @PostMapping
   @Operation(
@@ -47,8 +63,16 @@ public class CategoryController {
       @Parameter(description = "Menu id", required = true) @PathVariable("id") UUID menuId,
       @Valid @RequestBody CreateCategoryRequest body,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
-
+    #if USE_CQRS
+    return new ResponseEntity<>(
+            new ResourceCreatedResponse(
+                    createCategoryHandler
+                            .handle(requestToCommandMapper.map(correlationId, menuId, body))
+                            .orElseThrow()),
+            HttpStatus.CREATED);
+    #else
     return new ResponseEntity<>(categoryService.create(body, correlationId), HttpStatus.CREATED);
+    #endif
   }
 
   @PutMapping("/{categoryId}")
@@ -64,9 +88,17 @@ public class CategoryController {
           UUID categoryId,
       @Valid @RequestBody UpdateCategoryRequest body,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
-
+    #if USE_CQRS
+    return new ResponseEntity<>(
+            new ResourceUpdatedResponse(
+                    updateCategoryHandler
+                            .handle(requestToCommandMapper.map(correlationId, menuId, categoryId, body))
+                            .orElseThrow()),
+            OK);
+    #else
     return new ResponseEntity<>(
         categoryService.update(menuId, categoryId, body, correlationId), OK);
+    #endif
   }
 
   @DeleteMapping("/{categoryId}")
@@ -81,7 +113,9 @@ public class CategoryController {
       @Parameter(description = "Category id", required = true) @PathVariable("categoryId")
           UUID categoryId,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
-
+    #if USE_CQRS
+    deleteCategoryHandler.handle(new DeleteCategoryCommand(correlationId, menuId, categoryId));
+    #endif
     return new ResponseEntity<>(OK);
   }
 }

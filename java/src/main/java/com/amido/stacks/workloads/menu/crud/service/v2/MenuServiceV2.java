@@ -1,11 +1,12 @@
-package com.amido.stacks.workloads.menu.service.v2;
+package com.amido.stacks.workloads.menu.crud.service.v2;
 
 import com.amido.stacks.workloads.menu.api.v1.dto.response.MenuDTO;
+import com.amido.stacks.workloads.menu.crud.service.utility.MenuHelperService;
+import com.amido.stacks.workloads.menu.crud.service.v1.MenuService;
 import com.amido.stacks.workloads.menu.domain.Menu;
 import com.amido.stacks.workloads.menu.mappers.MenuMapper;
 import com.amido.stacks.workloads.menu.mappers.SearchMenuResultItemMapper;
-import com.amido.stacks.workloads.menu.service.utility.MenuHelperService;
-import com.amido.stacks.workloads.menu.service.v1.MenuService;
+
 import java.util.ArrayList;
 import java.util.UUID;
 import org.springframework.stereotype.Service;

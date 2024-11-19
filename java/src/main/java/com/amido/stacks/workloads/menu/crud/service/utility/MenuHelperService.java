@@ -1,4 +1,4 @@
-package com.amido.stacks.workloads.menu.service.utility;
+package com.amido.stacks.workloads.menu.crud.service.utility;
 
 import com.amido.stacks.workloads.menu.domain.Category;
 import com.amido.stacks.workloads.menu.domain.Item;

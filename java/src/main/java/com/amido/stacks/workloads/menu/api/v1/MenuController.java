@@ -1,5 +1,7 @@
 package com.amido.stacks.workloads.menu.api.v1;
 
+import static java.util.Objects.nonNull;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 import static org.springframework.http.HttpStatus.OK;
 
 import com.amido.stacks.core.api.annotations.CreateAPIResponses;
@@ -13,13 +15,28 @@ import com.amido.stacks.workloads.menu.api.v1.dto.request.CreateMenuRequest;
 import com.amido.stacks.workloads.menu.api.v1.dto.request.UpdateMenuRequest;
 import com.amido.stacks.workloads.menu.api.v1.dto.response.MenuDTO;
 import com.amido.stacks.workloads.menu.api.v1.dto.response.SearchMenuResult;
-import com.amido.stacks.workloads.menu.service.v1.MenuService;
+import com.amido.stacks.workloads.menu.cqrs.CreateMenuHandler;
+
+import com.amido.stacks.workloads.menu.cqrs.DeleteMenuHandler;
+import com.amido.stacks.workloads.menu.cqrs.UpdateMenuHandler;
+import com.amido.stacks.workloads.menu.cqrs.commands.DeleteMenuCommand;
+import com.amido.stacks.workloads.menu.cqrs.commands.MenuCommand;
+import com.amido.stacks.workloads.menu.cqrs.commands.UpdateMenuCommand;
+import com.amido.stacks.workloads.menu.cqrs.exception.MenuNotFoundException;
+import com.amido.stacks.workloads.menu.cqrs.mappers.RequestToCommandMapper;
+import com.amido.stacks.workloads.menu.domain.Menu;
+import com.amido.stacks.workloads.menu.mappers.MenuMapper;
+import com.amido.stacks.workloads.menu.mappers.SearchMenuResultItemMapper;
+import com.amido.stacks.workloads.menu.crud.service.v1.MenuService;
+import com.amido.stacks.workloads.menu.service.MenuQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
+
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -41,7 +58,25 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class MenuController {
 
+  #if USE_CQRS
+  // CQRS
+  private final CreateMenuHandler createMenuHandler;
+
+  private final RequestToCommandMapper requestToCommandMapper;
+
+  private final MenuQueryService menuQueryService;
+
+  private final SearchMenuResultItemMapper searchMenuResultItemMapper;
+
+  private final MenuMapper menuMapper;
+
+  private final UpdateMenuHandler updateMenuHandler;
+
+  private final DeleteMenuHandler deleteMenuHandler;
+  #else
+  // CRUD
   private final MenuService menuService;
+  #endif
 
   @PostMapping
   @Operation(
@@ -54,7 +89,18 @@ public class MenuController {
       @Valid @RequestBody CreateMenuRequest body,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
 
-    return new ResponseEntity<>(menuService.create(body, correlationId), HttpStatus.CREATED);
+    #if USE_CQRS
+      // CQRS
+      return new ResponseEntity<>(
+              new ResourceCreatedResponse(
+                      createMenuHandler
+                              .handle(requestToCommandMapper.map(correlationId, body))
+                              .orElseThrow()),
+              HttpStatus.CREATED);
+    #else
+      // CRUD
+      return new ResponseEntity<>(menuService.create(body, correlationId), HttpStatus.CREATED);
+    #endif
   }
 
   @GetMapping
@@ -78,8 +124,33 @@ public class MenuController {
       @RequestParam(value = "pageNumber", required = false, defaultValue = "1")
           Integer pageNumber) {
 
-    return ResponseEntity.ok(menuService.search(searchTerm, restaurantId, pageSize, pageNumber));
+    #if USE_CQRS
+      // CQRS
+      List<Menu> menuList;
+
+      if (isNotEmpty(searchTerm) && nonNull(restaurantId)) {
+        menuList =
+                this.menuQueryService.findAllByRestaurantIdAndNameContaining(
+                        restaurantId, searchTerm, pageSize, pageNumber);
+      } else if (isNotEmpty(searchTerm)) {
+        menuList = this.menuQueryService.findAllByNameContaining(searchTerm, pageSize, pageNumber);
+      } else if (nonNull(restaurantId)) {
+        menuList = this.menuQueryService.findAllByRestaurantId(restaurantId, pageSize, pageNumber);
+      } else {
+        menuList = this.menuQueryService.findAll(pageNumber, pageSize);
+      }
+
+      return ResponseEntity.ok(
+              new SearchMenuResult(
+                      pageSize,
+                      pageNumber,
+                      menuList.stream().map(searchMenuResultItemMapper::toDto).toList()));
+    #else
+      // CRUD
+      return ResponseEntity.ok(menuService.search(searchTerm, restaurantId, pageSize, pageNumber));
+    #endif
   }
+
 
   @GetMapping(value = "/{id}")
   @Operation(
@@ -99,7 +170,17 @@ public class MenuController {
       @PathVariable(name = "id") UUID id,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
 
-    return ResponseEntity.ok(menuService.get(id, correlationId));
+    #if USE_CQRS
+      // CQRS
+      Menu menu =
+              this.menuQueryService
+                      .findById(id)
+                      .orElseThrow(() -> new MenuNotFoundException(new MenuCommand(correlationId, id)));
+      return ResponseEntity.ok(menuMapper.toDto(menu));
+    #else
+      // CRUD
+      return ResponseEntity.ok(menuService.get(id, correlationId));
+    #endif
   }
 
   @PutMapping(value = "/{id}")
@@ -113,7 +194,16 @@ public class MenuController {
       @Valid @RequestBody UpdateMenuRequest body,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
 
-    return new ResponseEntity<>(menuService.update(body, correlationId), HttpStatus.OK);
+    #if USE_CQRS
+    // CQRS
+      UpdateMenuCommand command = requestToCommandMapper.map(correlationId, menuId, body);
+      return new ResponseEntity<>(
+              new ResourceUpdatedResponse(updateMenuHandler.handle(command).orElseThrow()),
+              HttpStatus.OK);
+    #else
+    // CRUD
+      return new ResponseEntity<>(menuService.update(body, correlationId), HttpStatus.OK);
+    #endif
   }
 
   @DeleteMapping(value = "/{id}")
@@ -127,6 +217,9 @@ public class MenuController {
       @Parameter(description = "Menu id", required = true) @PathVariable("id") UUID menuId,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
 
+    #if USE_CQRS
+      deleteMenuHandler.handle(new DeleteMenuCommand(correlationId, menuId));
+    #endif
     return new ResponseEntity<>(OK);
   }
 }

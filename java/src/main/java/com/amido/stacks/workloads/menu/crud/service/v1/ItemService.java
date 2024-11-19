@@ -1,4 +1,4 @@
-package com.amido.stacks.workloads.menu.service.v1;
+package com.amido.stacks.workloads.menu.crud.service.v1;
 
 import com.amido.stacks.core.api.dto.response.ResourceCreatedResponse;
 import com.amido.stacks.core.api.dto.response.ResourceUpdatedResponse;

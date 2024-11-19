@@ -1,6 +1,6 @@
 package com.amido.stacks.workloads.menu.api.v1;
 
-import com.amido.stacks.workloads.menu.service.v1.SecretsService;
+import com.amido.stacks.workloads.menu.crud.service.v1.SecretsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

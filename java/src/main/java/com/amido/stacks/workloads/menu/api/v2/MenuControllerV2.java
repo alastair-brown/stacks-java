@@ -2,7 +2,7 @@ package com.amido.stacks.workloads.menu.api.v2;
 
 import com.amido.stacks.core.api.annotations.ReadAPIResponses;
 import com.amido.stacks.workloads.menu.api.v1.dto.response.MenuDTO;
-import com.amido.stacks.workloads.menu.service.v2.MenuServiceV2;
+import com.amido.stacks.workloads.menu.crud.service.v2.MenuServiceV2;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

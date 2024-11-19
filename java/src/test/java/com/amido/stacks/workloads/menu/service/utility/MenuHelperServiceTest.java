@@ -3,6 +3,7 @@ package com.amido.stacks.workloads.menu.service.utility;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import com.amido.stacks.workloads.menu.crud.service.utility.MenuHelperService;
 import com.amido.stacks.workloads.menu.domain.Category;
 import com.amido.stacks.workloads.menu.domain.Item;
 import com.amido.stacks.workloads.menu.domain.Menu;

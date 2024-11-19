@@ -21,6 +21,11 @@
     <stacks.core.api.version>1.0.5.11-RELEASE</stacks.core.api.version>
     <stacks.core.commons.version>2.0.7</stacks.core.commons.version>
 
+    <!-- Manifold pre-processor -->
+    <manifold.version>2024.1.38</manifold.version>
+    <prop.cqrs></prop.cqrs>
+    <fmt-maven-plugin.version>2.25</fmt-maven-plugin.version>
+
     <!-- Stacks features -->
     <aws.profile.name>no-aws</aws.profile.name>
     <azure.profile.name>no-azure</azure.profile.name>
@@ -29,6 +34,8 @@
     <azure.springboot.version>4.0.0</azure.springboot.version>
     <au.com.dius.pact-jvm-provider-spring.version>4.0.10</au.com.dius.pact-jvm-provider-spring.version>
     <au.com.dius.pact.consumer-version>4.6.14</au.com.dius.pact.consumer-version>
+    <stacks.core.cqrs.version>2.0.1.2-RELEASE</stacks.core.cqrs.version>
+    <stacks.azure.cosmos.version>3.0.2</stacks.azure.cosmos.version>
     <au.com.dius.pact.provider.maven-version>4.6.14</au.com.dius.pact.provider.maven-version>
     <aws-java-sdk-s3.version>1.12.777</aws-java-sdk-s3.version>
     <aspectjweaver.version>1.9.9.1</aspectjweaver.version>
@@ -46,6 +53,9 @@
     <pact.api.protocol>http</pact.api.protocol>
     <pact.api.host>localhost</pact.api.host>
     <pact.api.port>9000</pact.api.port>
+
+    <prop.output.dir>/Users/alastairbrown/Documents/development/stacks-output</prop.output.dir>
+
   </properties>
 
   <dependencyManagement>
@@ -87,6 +97,24 @@
       <groupId>com.amido.stacks.modules</groupId>
       <artifactId>stacks-core-commons</artifactId>
       <version>${stacks.core.commons.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>systems.manifold</groupId>
+      <artifactId>manifold</artifactId>
+      <version>${manifold.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.amido.stacks.modules</groupId>
+      <artifactId>stacks-core-cqrs</artifactId>
+      <version>${stacks.core.cqrs.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.amido.stacks.modules</groupId>
+      <artifactId>stacks-azure-cosmos</artifactId>
+      <version>${stacks.azure.cosmos.version}</version>
     </dependency>
 
     <dependency>
@@ -256,6 +284,57 @@
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.8.0</version>
+        <configuration>
+          <encoding>UTF-8</encoding>
+          <compilerArgs>
+            <!-- Configure manifold plugin -->
+            <arg>-Xplugin:Manifold</arg>
+            <arg>-Amanifold.source.target=${prop.output.dir}</arg>
+            <arg>${prop.cqrs}</arg>
+          </compilerArgs>
+          <!-- Add the processor path for the plugin -->
+          <annotationProcessorPaths>
+            <path>
+              <groupId>systems.manifold</groupId>
+              <artifactId>manifold-preprocessor</artifactId>
+              <version>${manifold.version}</version>
+            </path>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>${lombok.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+      <!-- format the output source produced my Manifold -->
+      <plugin>
+        <groupId>com.spotify.fmt</groupId>
+        <artifactId>fmt-maven-plugin</artifactId>
+        <version>${fmt-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <phase>compile</phase>
+            <goals>
+              <goal>format</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <sourceDirectory>${prop.output.dir}</sourceDirectory>
+          <displayFiles>true</displayFiles>
+          <verbose>true</verbose>
+          <filesNamePattern>.*\.java</filesNamePattern>
+          <additionalSourceDirectories/>
+          <skip>false</skip>
+          <skipSortingImports>false</skipSortingImports>
+          <style>google</style>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
@@ -429,6 +508,12 @@
   <profiles>
 
     <!-- START FEATURE PROFILES -->
+    <profile>
+      <id>CQRS</id>
+      <properties>
+        <prop.cqrs>-AUSE_CQRS=</prop.cqrs>
+      </properties>
+    </profile>
 
     <profile>
       <id>aws</id>

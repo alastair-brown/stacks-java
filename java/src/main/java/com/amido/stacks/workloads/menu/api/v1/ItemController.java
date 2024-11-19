@@ -1,7 +1,5 @@
 package com.amido.stacks.workloads.menu.api.v1;
 
-import static org.springframework.http.HttpStatus.OK;
-
 import com.amido.stacks.core.api.annotations.CreateAPIResponses;
 import com.amido.stacks.core.api.annotations.DeleteAPIResponses;
 import com.amido.stacks.core.api.annotations.UpdateAPIResponses;
@@ -9,23 +7,24 @@ import com.amido.stacks.core.api.dto.response.ResourceCreatedResponse;
 import com.amido.stacks.core.api.dto.response.ResourceUpdatedResponse;
 import com.amido.stacks.workloads.menu.api.v1.dto.request.CreateItemRequest;
 import com.amido.stacks.workloads.menu.api.v1.dto.request.UpdateItemRequest;
-import com.amido.stacks.workloads.menu.service.v1.ItemService;
+import com.amido.stacks.workloads.menu.cqrs.CreateItemHandler;
+import com.amido.stacks.workloads.menu.cqrs.DeleteItemHandler;
+import com.amido.stacks.workloads.menu.cqrs.UpdateItemHandler;
+import com.amido.stacks.workloads.menu.cqrs.commands.DeleteItemCommand;
+import com.amido.stacks.workloads.menu.cqrs.mappers.RequestToCommandMapper;
+import com.amido.stacks.workloads.menu.crud.service.v1.ItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestAttribute;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.OK;
 
 @RequestMapping(
     path = "/v1/menu/{id}/category/{categoryId}/items",
@@ -34,7 +33,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ItemController {
 
+  #if USE_CQRS
+  // CQRS
+  private final CreateItemHandler createItemHandler;
+
+  private final RequestToCommandMapper requestToCommandMapper;
+
+  private final UpdateItemHandler updateItemHandler;
+
+  private final DeleteItemHandler deleteItemHandler;
+  #else
+  // CRUD
   private final ItemService itemService;
+  #endif
 
   @PostMapping
   @Operation(
@@ -49,9 +60,19 @@ public class ItemController {
           UUID categoryId,
       @Valid @RequestBody CreateItemRequest body,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
-
+    #if USE_CQRS
+    // CQRS
     return new ResponseEntity<>(
-        itemService.create(menuId, categoryId, body, correlationId), HttpStatus.CREATED);
+            new ResourceCreatedResponse(
+                    createItemHandler
+                            .handle(requestToCommandMapper.map(correlationId, menuId, categoryId, body))
+                            .orElseThrow()),
+            HttpStatus.CREATED);
+    #else
+    // CRUD
+    return new ResponseEntity<>(
+            itemService.create(menuId, categoryId, body, correlationId), HttpStatus.CREATED);
+     #endif
   }
 
   @PutMapping("/{itemId}")
@@ -68,9 +89,19 @@ public class ItemController {
       @Parameter(description = "Item id", required = true) @PathVariable("itemId") UUID itemId,
       @Valid @RequestBody UpdateItemRequest body,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
-
+    #if USE_CQRS
+    // CQRS
+    return new ResponseEntity<>(
+            new ResourceUpdatedResponse(
+                    updateItemHandler
+                            .handle(requestToCommandMapper.map(correlationId, menuId, categoryId, itemId, body))
+                            .orElseThrow()),
+            HttpStatus.OK);
+    #else
+    // CRUD
     return new ResponseEntity<>(
         itemService.update(menuId, categoryId, body, correlationId), HttpStatus.OK);
+     #endif
   }
 
   @DeleteMapping("/{itemId}")
@@ -87,6 +118,10 @@ public class ItemController {
       @Parameter(description = "Item id", required = true) @PathVariable("itemId") UUID itemId,
       @Parameter(hidden = true) @RequestAttribute("CorrelationId") String correlationId) {
 
+    #if USE_CQRS
+    // CQRS
+    deleteItemHandler.handle(new DeleteItemCommand(correlationId, menuId, categoryId, itemId));
+    #endif
     return new ResponseEntity<>(OK);
   }
 }
